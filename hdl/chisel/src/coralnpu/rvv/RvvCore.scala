@@ -355,8 +355,13 @@ object GenerateCoreShimSource {
       |  assign rd_rob2rt_o_GENI_vector_csr_lmul_orig = rd_rob2rt_o[GENI].vector_csr.lmul_orig;
       |  assign rd_rob2rt_o_GENI_vector_csr_vill = rd_rob2rt_o[GENI].vector_csr.vill;
       |  assign rd_rob2rt_o_GENI_vxsaturate = rd_rob2rt_o[GENI].vxsaturate;
+      |`ifdef TB_SUPPORT
       |  assign rd_rob2rt_o_GENI_uop_pc = rd_rob2rt_o[GENI].uop_pc;
       |  assign rd_rob2rt_o_GENI_last_uop_valid = rd_rob2rt_o[GENI].last_uop_valid;
+      |`else
+      |  assign rd_rob2rt_o_GENI_uop_pc = 32'b0;
+      |  assign rd_rob2rt_o_GENI_last_uop_valid = 1'b0;
+      |`endif
       |""".stripMargin.replaceAll("GENI", i.toString)
     }
     coreInstantiation += """  assign trap_bits_pc = trap_data.pc;
