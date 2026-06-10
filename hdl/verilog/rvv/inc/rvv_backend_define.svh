@@ -26,6 +26,7 @@
   `define FMA_RS_DEPTH          8
   `define FRDT_RS_DEPTH         4
   `define LSU_RS_DEPTH          4
+  `define LSUMAP_DEPTH          8
   `define ROB_DEPTH             8
 
 `else  // DISPATCH2
@@ -49,6 +50,7 @@
   `define FMA_RS_DEPTH          4
   `define FRDT_RS_DEPTH         4
   `define LSU_RS_DEPTH          4
+  `define LSUMAP_DEPTH          8
   `define ROB_DEPTH             8
 `endif
 
