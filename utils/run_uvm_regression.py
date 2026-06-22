@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import subprocess
+import fnmatch
 import os
 import csv
 import sys
@@ -82,6 +83,10 @@ DENYLIST = [
     "//tests/cocotb/rvv/ml_ops:rvv_matmul_assembly_itcm512kb_dtcm512kb",
     "//tests/cocotb/rvv/ml_ops:rvv_matmul_highmem",
     "//tests/cocotb/rvv/ml_ops:rvv_matmul_itcm512kb_dtcm512kb",
+    # 1) UVM backdoor loader does not support loading to external memory (.extdata).
+    # 2) UVM testbench lacks mechanism to initialize input/scale/zp data in external memory.
+    "//internal/kernels:*",
+    "//internal/kernels/*",
 ]
 
 # List of targets to exclude from Spike co-simulation (e.g. tests requiring external IRQs)
@@ -146,7 +151,7 @@ def get_targets(limit: Optional[int] = None,
         target_name_full = rule.attrib['name']  # //package:target
 
         # Check against DENYLIST
-        if target_name_full in DENYLIST:
+        if any(fnmatch.fnmatch(target_name_full, pattern) for pattern in DENYLIST):
             continue
 
         # Check linker_script attribute
@@ -434,7 +439,7 @@ def get_riscv_test_artifacts() -> List[Tuple[str, str]]:
                     # e.g. //third_party/riscv-tests:rv32ui-p-add
                     name = f
                     pseudo_target = f"//third_party/riscv-tests:{name}"
-                    if pseudo_target in DENYLIST:
+                    if any(fnmatch.fnmatch(pseudo_target, pattern) for pattern in DENYLIST):
                         continue
                     artifacts.append((pseudo_target, full_path))
 
