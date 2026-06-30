@@ -114,8 +114,8 @@ object FloatInstruction {
         "b10011".U -> MakeValid(FloatOpcode.NMADD),
     ))
 
-    val fcvt_s_bf16 = (funct5 === "b01000".U) && (rs2 === "b01000".U) && (fmt === 2.U)
-    val fcvt_bf16_s = (funct5 === "b01000".U) && (rs2 === "b01001".U) && (fmt === 2.U)
+    val fcvt_s_bf16 = (funct5 === "b01000".U) && (rs2 === "b00110".U) && (fmt === 0.U)
+    val fcvt_bf16_s = (funct5 === "b01000".U) && (rs2 === "b01000".U) && (fmt === 2.U)
     val is_zfbfmin = (fcvt_s_bf16 || fcvt_bf16_s) && p.enableZfbfmin.B
 
     // TODO(atv): Hook scalar_rd and scalar_rs1 into scalar scoreboard

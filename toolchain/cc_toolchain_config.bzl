@@ -161,7 +161,7 @@ def _impl(ctx):
         ],
     )
 
-    arch = "rv64imf_zve32f_zicsr_zifencei_zbb" if ctx.attr.is_rv64 else "rv32imf_zve32f_zicsr_zifencei_zbb"
+    arch = "rv64imf_zve32f_zicsr_zifencei_zbb_zfbfmin_zvfbfmin_zvfbfwma" if ctx.attr.is_rv64 else "rv32imf_zve32f_zicsr_zifencei_zbb_zfbfmin_zvfbfmin_zvfbfwma"
     abi = "lp64" if ctx.attr.is_rv64 else "ilp32"
     architecture_flag_set = flag_set(
         actions = all_compile_actions + all_link_actions,
