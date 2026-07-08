@@ -135,7 +135,7 @@ detect_base_branch() {
     done
 
     # 3. Fallback to common branch names
-    for b in "origin/main" "origin/master" "main" "master"; do
+    for b in "origin/main" "origin/master" "main" "master" "m/main" "m/master"; do
         if git rev-parse --verify "${b}" >/dev/null 2>&1; then
             echo "${b}"
             return
@@ -159,8 +159,26 @@ if [[ "$*" == *"--all"* ]]; then
         add_file "${file}"
     done < <(git ls-files -z)
 
-# 2. Git Hook (Stdin is piped)
-# Priority because hooks pass arguments (remote name/URL) that are NOT files to lint.
+# 2. GitHub Actions
+elif [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    log "CI: GitHub Actions Detected"
+    if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
+        info "Event: Pull Request (Base: ${GITHUB_BASE_REF:-})"
+        LINT_BASE="origin/${GITHUB_BASE_REF}"
+        RANGE="origin/${GITHUB_BASE_REF}...HEAD"
+    else
+        info "Event: ${GITHUB_EVENT_NAME:-unknown}"
+        RANGE="${LINT_BASE}...HEAD"
+    fi
+    gather_diff "${RANGE}"
+
+# 3. Generic CI
+elif [[ "${CI:-}" == "true" ]]; then
+    log "CI: Generic CI Detected"
+    gather_diff "${LINT_BASE}...HEAD"
+
+# 4. Git Hook (Stdin is piped)
+# hooks pass arguments (remote name/URL) that are NOT files to lint.
 elif [[ ! -t 0 ]]; then
     if read -t 0.1 -r _ local_sha _ remote_sha; then
         log "Git Hook: Pre-push Detected"
@@ -193,24 +211,6 @@ elif [[ "$#" -gt 0 && "$1" != -* ]]; then
     log "Manual: Linting specific targets"
     IS_DIFF_LINT=false
     gather_targets "$@"
-
-# 4. GitHub Actions
-elif [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
-    log "CI: GitHub Actions Detected"
-    if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
-        info "Event: Pull Request (Base: ${GITHUB_BASE_REF:-})"
-        LINT_BASE="origin/${GITHUB_BASE_REF}"
-        RANGE="origin/${GITHUB_BASE_REF}...HEAD"
-    else
-        info "Event: ${GITHUB_EVENT_NAME:-unknown}"
-        RANGE="${LINT_BASE}...HEAD"
-    fi
-    gather_diff "${RANGE}"
-
-# 5. Generic CI
-elif [[ "${CI:-}" == "true" ]]; then
-    log "CI: Generic CI Detected"
-    gather_diff "${LINT_BASE}...HEAD"
 
 # 6. Default: Local changes
 else
