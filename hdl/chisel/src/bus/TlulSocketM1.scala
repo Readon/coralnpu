@@ -20,11 +20,7 @@ class TlulSocketM1(
   val StIdW                = log2Ceil(M)
 
   // 1. Define device-side parameters (augmented source ID width)
-  val p_d = new TLULParameters(
-    dataBits = p.w * 8,
-    addrBits = p.a,
-    idBits = p.o + StIdW
-  )
+  val p_d = p.augmentId(StIdW)
 
   val io = IO(new Bundle {
     val tl_h = Flipped(Vec(M, new OpenTitanTileLink.Host2Device(p)))
@@ -32,19 +28,14 @@ class TlulSocketM1(
   })
 
   // 2. Combinational Request Path (A-Channel)
-  // Augment source ID with host index combinationally before arbitration
-  val hreq_a = Wire(Vec(M, Decoupled(new OpenTitanTileLink.A_Channel(p_d))))
-  for (i <- 0 until M) {
-    hreq_a(i).valid       := io.tl_h(i).a.valid
-    io.tl_h(i).a.ready    := hreq_a(i).ready
-    hreq_a(i).bits        := io.tl_h(i).a.bits
-    hreq_a(i).bits.source := Cat(io.tl_h(i).a.bits.source, i.U(StIdW.W))
+  val augmented_hosts = (0 until M).map { i =>
+    TlulAccessors.augment(io.tl_h(i), i.U(StIdW.W))
   }
 
   // Arbiter selects one request combinationally
   val arb = Module(new Arbiter(new OpenTitanTileLink.A_Channel(p_d), M))
   for (i <- 0 until M) {
-    arb.io.in(i) <> hreq_a(i)
+    arb.io.in(i) <> augmented_hosts(i).a
   }
 
   // Drive device request directly (0 latency)
@@ -57,13 +48,12 @@ class TlulSocketM1(
   val host_index = rsp_bits.source(StIdW - 1, 0)
 
   for (i <- 0 until M) {
-    io.tl_h(i).d.valid       := rsp_valid && (host_index === i.U)
-    io.tl_h(i).d.bits        := rsp_bits
-    io.tl_h(i).d.bits.source := rsp_bits.source >> StIdW
+    augmented_hosts(i).d.valid := rsp_valid && (host_index === i.U)
+    augmented_hosts(i).d.bits  := rsp_bits
   }
 
   // Combine ready signals back to device D-channel
-  io.tl_d.d.ready := VecInit(io.tl_h.map(_.d.ready))(host_index)
+  io.tl_d.d.ready := VecInit(augmented_hosts.map(_.d.ready))(host_index)
 }
 
 import _root_.circt.stage.{ChiselStage, FirtoolOption}

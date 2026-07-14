@@ -48,7 +48,8 @@ class OpenTitanTileLink_D_User extends Bundle {
 
 class NoUser extends Bundle {}
 
-class TileLink_A_ChannelBase[T <: Data](p: TLULParameters, val userGen: () => T) extends Bundle {
+class TileLink_A_ChannelBase[T <: Data](val p: TLULParameters, val userGen: () => T)
+    extends Bundle {
   val opcode  = UInt(3.W)
   val param   = UInt(3.W)
   val size    = UInt(p.z.W)
@@ -57,9 +58,24 @@ class TileLink_A_ChannelBase[T <: Data](p: TLULParameters, val userGen: () => T)
   val mask    = UInt(p.w.W)
   val data    = UInt((8 * p.w).W)
   val user    = userGen()
+
+  def extendSource(extraBits: UInt) = {
+    val extraWidth = extraBits.getWidth
+    val result     = Wire(new TileLink_A_ChannelBase(p.augmentId(extraWidth), userGen))
+    result.opcode  := this.opcode
+    result.param   := this.param
+    result.size    := this.size
+    result.source  := Cat(this.source, extraBits)
+    result.address := this.address
+    result.mask    := this.mask
+    result.data    := this.data
+    result.user    := this.user
+    result
+  }
 }
 
-class TileLink_D_ChannelBase[T <: Data](p: TLULParameters, val userGen: () => T) extends Bundle {
+class TileLink_D_ChannelBase[T <: Data](val p: TLULParameters, val userGen: () => T)
+    extends Bundle {
   val opcode = UInt(3.W)
   val param  = UInt(3.W)
   val size   = UInt(p.z.W)
@@ -68,27 +84,48 @@ class TileLink_D_ChannelBase[T <: Data](p: TLULParameters, val userGen: () => T)
   val data   = UInt((8 * p.w).W)
   val user   = userGen()
   val error  = Bool()
+
+  def shrinkSource(extraBits: Int) = {
+    val result = Wire(new TileLink_D_ChannelBase(p.shrinkId(extraBits), userGen))
+    result.opcode := this.opcode
+    result.param  := this.param
+    result.size   := this.size
+    result.source := this.source >> extraBits
+    result.sink   := this.sink
+    result.data   := this.data
+    result.user   := this.user
+    result.error  := this.error
+    result
+  }
 }
 
 class TileLink_A_Channel(p: TLULParameters) extends TileLink_A_ChannelBase(p, () => new NoUser) {}
 class TileLink_D_Channel(p: TLULParameters) extends TileLink_D_ChannelBase(p, () => new NoUser) {}
 
 class TLULHost2Device[A_USER <: Data, D_USER <: Data](
-  p: TLULParameters,
-  userAGen: () => A_USER,
-  userDGen: () => D_USER
+  val p: TLULParameters,
+  val userAGen: () => A_USER,
+  val userDGen: () => D_USER
 ) extends Bundle {
   val a = Decoupled(new TileLink_A_ChannelBase(p, userAGen))
   val d = Flipped(Decoupled(new TileLink_D_ChannelBase(p, userDGen)))
+
+  def extendSource(extraBits: Int) = {
+    new TLULHost2Device(p.augmentId(extraBits), userAGen, userDGen)
+  }
 }
 
 class TLULDevice2Host[A_USER <: Data, D_USER <: Data](
-  p: TLULParameters,
-  userAGen: () => A_USER,
-  userDGen: () => D_USER
+  val p: TLULParameters,
+  val userAGen: () => A_USER,
+  val userDGen: () => D_USER
 ) extends Bundle {
   val a = Flipped(Decoupled(new TileLink_A_ChannelBase(p, userAGen)))
   val d = Decoupled(new TileLink_D_ChannelBase(p, userDGen))
+
+  def extendSource(extraBits: Int) = {
+    new TLULDevice2Host(p.augmentId(extraBits), userAGen, userDGen)
+  }
 }
 
 object OpenTitanTileLink {
@@ -108,4 +145,26 @@ object OpenTitanTileLink {
         () => new OpenTitanTileLink_A_User,
         () => new OpenTitanTileLink_D_User
       ) {}
+}
+
+object TlulAccessors {
+  def augment[A_USER <: Data, D_USER <: Data](
+    narrow: TLULHost2Device[A_USER, D_USER],
+    hostIndex: UInt
+  ): TLULHost2Device[A_USER, D_USER] = {
+    val extraBits = hostIndex.getWidth
+    val wide      = Wire(narrow.extendSource(extraBits))
+
+    // A-Channel (Request: wide <- narrow)
+    wide.a.valid   := narrow.a.valid
+    narrow.a.ready := wide.a.ready
+    wide.a.bits    := narrow.a.bits.extendSource(hostIndex)
+
+    // D-Channel (Response: narrow <- wide)
+    narrow.d.valid := wide.d.valid
+    wide.d.ready   := narrow.d.ready
+    narrow.d.bits  := wide.d.bits.shrinkSource(extraBits)
+
+    wide
+  }
 }

@@ -27,4 +27,14 @@ class TLULParameters(
   val z = log2Ceil(w)
   val o = idBits
   val i = sinkBits
+
+  def augmentId(extraBits: Int) =
+    new TLULParameters(dataBits, addrBits, idBits + extraBits, sinkBits)
+  def shrinkId(extraBits: Int) = {
+    require(
+      idBits - extraBits >= 0,
+      s"Cannot shrink ID bits below 0 (current: $idBits, shrink: $extraBits)"
+    )
+    new TLULParameters(dataBits, addrBits, idBits - extraBits, sinkBits)
+  }
 }
